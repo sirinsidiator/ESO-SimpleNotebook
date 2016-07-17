@@ -1,0 +1,93 @@
+There are generally two ways how we get information from the game's API. Either we get it as return values from some function when we need it, or we listen to an event so we get it when it becomes available. In this part we will take a closer look at events. There is a full [[Events|list of all available events]] here on the wiki, but keep in mind that it is updated by authors like you and me, so it may not always keep up with the latest changes.
+
+Events are received via the EventManager which is available as a global variable called ''EVENT_MANAGER'' and has a method ''RegisterForEvent'' which expects three parameters. The namespace for our callback, the event type we want to listen to and the callback function. Usually the namespace is simply the add-on name, but sometimes it is necessary to register more than one callback for the same event, which is not possible for the same namespace-eventType pair. In that case there is always the option to append a number or a word to set it apart.
+
+Let's extend our code from [[SimpleNotebookTutorial/part2|last time]] and show a joke in chat whenever something happens in the game. First we need to decide on an event. For the purpose of this tutorial we will pick ''EVENT_PLAYER_ACTIVATED''. It fires whenever the player becomes active, which happens mostly after loading screens.
+
+We add the following code to the end of our lua file:
+<pre>
+EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_PLAYER_ACTIVATED, function()
+    d(GetRandomElement(jokes))
+end)
+</pre>
+
+Now when we reload the UI we will see a random joke in the chat window. We can use the d() function here without any special measures, because the chat system is also loaded in the first EVENT_PLAYER_ACTIVATED and event callbacks are called in order of their registration. As ingame code is usually initialized before any add-on code this means that our code will run after any stock UI code when handling events. There are many exceptions however, as parts of the UI may get initialized in ''EVENT_ADD_ON_LOADED'' or even later in ''EVENT_PLAYER_ACTIVATED''.
+
+Speaking of which, ''EVENT_ADD_ON_LOADED'' is another very important event - if not the most important one - for add-ons. The event is fired after all files for every add-on that the player has activated are loaded, which makes it ideal for initializing our add-on in case we have split our code into multiple files. Let's restructure our add-on a bit so we can see how this works.
+
+First we create a "namespace" table for our add-on. This will be one global table where we can put all our add-on functions and variables that we want to share across files, so we put it in the beginning of the first file that we list in our manifest. The variable should have the same name as the add-on, but as long as it is unique and won't collide with other add-ons, any other name is fine too.
+
+<pre>SimpleNotebook = {}</pre>
+
+Next we move our jokes into a separate file called ''jokes.lua'' and add it to the manifest right after our ''StartUp.lua''. To access the local jokes table in our new file we would need to put them into our global table, but as we don't actually want to directly access the table anyways, we will do something else instead. We put our ''GetRandomElement'' method into the namespace table by putting the following line right after the function definition.
+
+<pre>SimpleNotebook.GetRandomElement = GetRandomElement</pre>
+
+Then we create a method ''GetJoke'' in our new file which will return a random joke and also put it into our namespace table.
+
+<pre>
+local function GetJoke()
+    return GetRandomElement(jokes)
+end
+
+SimpleNotebook.GetJoke = GetJoke
+</pre>
+
+This will obviously not work yet. We still need to get a valid reference to ''GetRandomElement''. We could simply access it directly as ''SimpleNotebook.GetRandomElement''.
+
+<pre>
+local function GetJoke()
+    return SimpleNotebook.GetRandomElement(jokes)
+end
+</pre>
+
+But this makes the code unnecessary difficult to read, so instead we create a local variable for it at the beginning of our jokes.lua
+
+<pre>local GetRandomElement = SimpleNotebook.GetRandomElement</pre>
+
+This way is also a tiny bit faster as it does not need to make a table lookup for the function, but unless you call the method a billion times in a loop, it won't have any noticeable impact.
+
+We do the same for our GetJoke method and import it into ''StartUp.lua'' and then replace all occurrences of ''GetRandomElement(jokes)'' with ''GetJoke()''. Now we are ready and can reload our UI to give it a try.
+
+Only to be greeted by an UI error telling us that the function ''GetJoke'' is not defined.
+<pre>
+user:/AddOns/SimpleNotebook/StartUp.lua:18: function expected instead of nil
+stack traceback:
+    user:/AddOns/SimpleNotebook/StartUp.lua:18: in function '(anonymous)'
+</pre>
+
+The game loads one file after another in the order we have put them in our add-on manifest, so we have to imagine our code as one large file separated in <code>do ... end</code> segments for each file. We may have defined all the functions at some point, but because ''StartUp.lua'' is loaded before ''jokes.lua'' the code from the latter is obviously not available in the first. Meaning ''SimpleNotebook.GetJoke'' was not defined when we assigned it to our local variable. This is where the ''EVENT_ADD_ON_LOADED'' comes into play. As we have learned, it is fired after all files have been loaded, so we can use it to make sure that all of our variables are available.
+
+Let's put all the code that relies on ''GetJoke'' into an event callback.
+
+<pre>
+EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function()
+    local GetJoke = SimpleNotebook.GetJoke
+
+    SLASH_COMMANDS["/joke"] = function()
+        StartChatInput(GetJoke(), CHAT_CHANNEL_SAY)
+    end
+
+    EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_PLAYER_ACTIVATED, function()
+        d(GetJoke())
+    end)
+end)
+</pre>
+
+This will already work, but there is still one more thing we need to do. As mentioned before, the event is fired for all add-ons, so we need to make sure we run our code only once for our add-on. This can be done with the help of the arguments that are passed to our callback. Every event callback receives the ''eventType'' as first parameter and any custom arguments after that. In the case of EVENT_ADD_ON_LOADED the name of an add-on is the second argument.
+
+<pre>
+EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function(eventType, addonName)
+    if addonName ~= "SimpleNotebook" then return end
+</pre>
+
+With this we have taken care of it, but we can improve it a bit more, as we know that the event will only ever fire once for our add-on. That fact allows us to unregister from the event once our add-on name came up in order to avoid unnecessary calls. The EventManager has a method ''UnregisterForEvent'' that we have to pass the namespace-eventType pair to.
+
+<pre>
+    if addonName ~= "SimpleNotebook" then return end
+    EVENT_MANAGER:UnregisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED)
+</pre>
+
+For some events that fire very often (e.g. ''EVENT_COMBAT_EVENT'') there is an even better way to filter for the calls that we want. Since Update 7 the EventManager has a new method ''AddFilterForEvent'' which allows to let the c-side of the client code handle filtering of some specific arguments. You should read [[AddFilterForEvent|this wiki page]] for more information.
+
+With this we have learned how to react to events and how to split an add-on into multiple files. Next time we will start towards our goal of making a notebook and save data persistently between sessions.
