@@ -1,0 +1,71 @@
+In this part of the tutorial we will look at how to create an add-on from scratch and show some output on the screen.
+
+The first step to make an addon is to locate the correct [[UserFolder|folder]] in the filesystem. Once we are there, we create a new subfolder called ''SimpleNotebook'' inside the AddOn folder. Inside this new folder we now create a text file called ''SimpleNotebook.txt'' - the so called [[Addon manifest (.txt) format|manifest file]]. That's all. We now have created our very first add-on that will get recognized by the game. True, it doesn't do anything yet and won't even load unless we have "Allow out of date add-ons" checked in the add-ons menu, but it is a start.
+
+Let's fix the out of date warning. In order to do this, we need to specify which version of the API the addon was written for. This can be done by adding the following line to the manifest file:
+<pre>## APIVersion: 100015</pre>
+
+Now when we type <code>/reloadui</code> in chat, the add-on is no longer out of date and gets loaded. This slash command is really useful and something to remember, as it allows to see code changes without having to restart the game.
+
+We have an add-on, but it is not running any code - time to change that. We create a Lua file called ''StartUp.lua'' inside our addon's folder and add a second line to the manifest, containing just the name of the new file. It can also be call something else as long as the correct relative path is specified. 
+
+<pre>## APIVersion: 100015
+StartUp.lua
+</pre>
+
+In StartUp.lua we now add our first line of code.
+<pre>d("Hello Tamriel!")</pre>
+The d() function is a shortcut that ZOS has added in order to print some text to the chat window. It is the simplest way to write something on the screen.
+
+Now we reload the UI again. Huh? Nothing happened. Did the code not load? The game won't give any warnings when a file is not found, so always double check if it is written correctly.
+
+Let's change our call. Instead of d() we now call error().
+<pre>error("Hello Tamriel!")</pre>
+That's a built-in Lua function which stops execution and prints an error message. No way this is not going to work, so let's reload the UI again.
+
+And there it is. We see our first message on the screen. But why doesn't d() print our output to chat?
+The reason for that is the order in which the UI is loaded.
+
+There are basically 3 phases:
+* Phase 1 is when all Lua files are loaded and executed in the order they appear. That includes the stock UI that is basically just another add-on and all user created add-ons in the AddOns folder.
+* Phase 2 tells each add-on that all of its files have been fully loaded and they can now expect to find all of their functions in memory.
+* Phase 3 is what follows afterwards and the in-game UI and add-ons may do some more initialization in reaction to certain events.
+
+In the case of the chat system, the chat window is not created until the player has activated for the first time, which basically means that messages which are sent via d() will simply get dropped before the first loading screen disappears. To avoid this, we can wait until the chat system has fully loaded. One way to achieve this is to use zo_callLater() to delay our code execution by a few seconds. 
+
+<pre>zo_callLater(function() d("Hello Tamriel!") end, 2000)</pre>
+We wrap our call to d() into a function and pass it to zo_callLater(). The second argument specifies how many milliseconds later it should be called.
+This is not completely reliable as the chat could take even longer than two seconds to become ready if we are unlucky, but we hope for the best and just try and see.
+Now when we reload the UI, we should see our output appear once in chat two seconds after the code has loaded. If it doesn't show up, increase the time and reload the UI again.
+
+''Note: One very important thing to keep in mind when using zo_callLater is that internally it consists of 2 parts. Registering for an update and unregistering for an update. Unfortunately ZOS put the unregister call after the execution of our callback, so if we have some error in our code, zo_callLater will happily run our code every x milliseconds until we reload the UI.''
+
+Now that our addon is running, we can also add a few more things like the add-on title, author and a version number to our manifest. When no title is specified it simply picks the filename as add-on name, but we can also choose something completely different if we want.
+<pre>## Title: Simple Notebook
+## Author: sirinsidiator
+## Version: 1.0
+## APIVersion: 100015
+</pre>
+''Note: You should change the author name to your own nickname, because you are writing it yourself.''
+
+Besides this, ZOS also [https://account.elderscrollsonline.com/add-on-terms requires us] to add the following disclaimer to every add-on we release to the public:
+<pre>This Add-on is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
+The Elder Scrolls® and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the United States and/or other countries. 
+All rights reserved.</pre>
+This can be added to a readme file, or as a comment to the manifest file.
+It should however not be added in a file with a .txt ending, because it would be interpreted as another manifest file and show in the add-on list.
+
+I personally prefer to include it in the manifest file between the meta information and the file list like this:
+<pre>
+##
+## This Add-on is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
+## The Elder Scrolls® and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the United States and/or other countries. 
+## All rights reserved
+##
+## You can read the full terms at https://account.elderscrollsonline.com/add-on-terms
+</pre>
+
+That's it for the first part. We learned how to create a new basic add-on, how to print output to chat and how to delay code execution by a certain amount of time.
+The full code can be found in the accompanying archive linked on the introduction page.
+
+In the [[SimpleNotebookTutorial/part2|next part]] we will do something more exciting and react to our user.
