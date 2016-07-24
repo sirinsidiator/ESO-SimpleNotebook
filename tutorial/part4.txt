@@ -1,0 +1,144 @@
+Now that we know how to handle [[SimpleNotebookTutorial/part2|input]] and [[SimpleNotebookTutorial/part3|events]] and are able to generate some [[SimpleNotebookTutorial/part1|output]], it is time to learn how to save something persistently in order to make our notebook.
+In this part we will create a set of slash commands that allow us to save, show and delete notes.
+
+We will create the following commands:
+*<code>/remember <word> <note></code> - takes the first word as a keyword and saves everything that follows after a space
+*<code>/remind [<word>]</code> - shows what has been saved for a keyword, or if no keyword is passed, shows a list of all saved keywords
+*<code>/forget [<word>]</code> - deletes what has been saved for a keyword, or everything if no keyword is passed
+
+Before we start making these commands, we have to prepare our add-on to support saved variables. It's up to you if you want keep the things we did in the previous parts.
+Either way we open the manifest file and add the following line after the API version:
+<pre>## SavedVariables: SimpleNotebook_Data</pre>
+This line specifies that the global variable SimpleNotebook_Data has to be saved to SimpleNotebook.lua in the SavedVariables folder. We could also choose a different name, but it should always include the add-on name to make it unique enough so it won't conflict with other add-ons.
+
+Now that we have updated our manifest we can create our saved data structure.
+The SavedVariables are simply global variables and it is up to us what we store in them. It is in most cases useful to create sub tables for display names, because multiple accounts can be used on the same PC and we do not want to mix their data up. It may also be necessary to further separate it by character name and another good idea is to include a version number somewhere in case we want to upgrade the data structure in the future.
+With the introduction of name change tokens in Update 12 we will also have to take care of character renames.
+
+We could handle all of this ourselves, or use the class that ZOS provides for their own saved variables.
+The ''ZO_SavedVars'' object automatically creates the necessary structure and provides a table for the current user that we can simply store data in.
+
+There are two ways to create the object. Either local for a character, or account wide.
+In our case we want the notes to be stored between characters, so we use ''NewAccountWide'' to create the object:
+
+<pre>local saveData = ZO_SavedVars:NewAccountWide("SimpleNotebook_Data", 1)</pre>
+We need to specify a version, otherwise everything we have saved would be deleted when we call NewAccountWide the next time. If we increase the version in the future, it will also be purged.
+
+With our saveData in place we can now start storing information.
+First we create the <code>/remember</code> slash command.
+<pre>
+SLASH_COMMANDS["/remember"] = function() end
+</pre>
+But wait, how do we get the information we want to store?
+The slash commands automatically passes all input that is coming after the command itself (excluding the first space) to our function. From there we can interpret it however we want.
+In order to get our keyword we need to split this input string on the first space we encounter. ZOS offers a method ''zo_strsplit'' that we could use, but it would split the string on every space it encounters, so we instead use plain Lua to split it on the first space only.
+
+<pre>
+SLASH_COMMANDS["/remember"] = function(input) 
+    local keyword, message = input:match("(.-) (.-)$")
+    saveData[keyword] = message
+end
+</pre>
+Lua string matching uses its own unique [http://lua-users.org/wiki/PatternsTutorial patterns] that reminds a bit of regular expressions, but are a lot more limited. We look for the shortest matching string <code>.-</code> before a space and store it <code>()</code>. We also store the remaining string after the space to the end of the line <code>$</code>.
+
+In order to show what we just stored, we create the <code>/remind</code> command:
+<pre>
+SLASH_COMMANDS["/remind"] = function(keyword)
+    d(saveData[keyword])
+end
+</pre>
+For this command we simply expect the keyword as parameter and don't need to split the input.
+
+Now we can save and load simple messages. Try it!
+
+Once we have reloaded the UI and saved a note, we can take a look at the SavedVariables folder in our [[UserFolder]], but there is no file for SimpleNotebook yet. That's because the game only writes the data to disk when the UI unloads, which happens when we log out or reload the UI. This also means that all addon data that is collected during a session is lost when the game crashes or is closed unexpectedly (e.g. via alt+f4).
+After we reload the UI for the second time we can take a look at the newly created file.
+
+<pre>
+SimpleNotebook_Data =
+{
+    ["Default"] = 
+    {
+        ["@sirinsidiator"] = 
+        {
+            ["$AccountWide"] = 
+            {
+                ["Hello"] = "World!",
+                ["version"] = 1,
+            },
+        },
+    },
+}
+</pre>
+
+It contains a plain Lua table - no magic serialized file format whatsoever. 'Default' is a namespace and by passing an optional argument to ''ZO_SavedVars'' it can be changed to something different. ''$AccountWide'' is used where the character name would be in case we had used a character bound save data. The ''version'' field is used by the class to determine if the data should be wiped or replaced with optional default values. One thing you may notice after saving a few notes and reloading the UI for a few times, is that the order of the elements in the save data is always different. This is because of how Lua manages tables and there is no way to change it besides using indexed tables.
+
+Now that we have set up our basic functionality, we also want to show the list of existing keywords when nothing is passed to <code>/remind</code>, so we need to somehow print them to chat.
+First we create a function to retrieve the keys. The easiest way is to just iterate over all existing elements and put them in a new table. To iterate over a non numeric table we can use ''pairs()'', but it won't have any particular order, so we also need to sort the elements.
+<pre>
+local function GetKeys(table)
+    local keys = {}
+    for key in pairs(table) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    return keys
+end
+</pre>
+
+This will return a table with all keys in alphabetic order. There is also a function ''table.insert()'' to add new elements, but I prefer this way as it does not require a function call.
+
+We could simply let ''d()'' handle rendering the table, but we want to have a comma separated list instead of the formatted table overview.
+While it is possible to build the string while we iterate over the table, it is not recommended to generate them that way, as it stores every partial string separately in memory, which the garbage collector has to clean up later. It is always better to let Lua combine them on the c-side of the engine to avoid this. For this purpose we use ''table.concat()'' which allows us to easily combine all elements in the table with a separator in between each - exactly what we want.
+
+<pre>
+SLASH_COMMANDS["/remind"] = function(keyword)
+    if(keyword == "") then
+        local keys = GetKeys(saveData)
+        d("Existing keywords: ", table.concat(keys, ", "))
+    else
+        d(saveData[keyword])
+    end
+end
+</pre>
+
+This looks already promising, but there is an unnecessary line feed before the keywords start. We could combine the two strings with the <code>..</code> operator, but there is an even better way, the ''df()'' function. It is an alias for <code>d(string.format(formatter, args, ...))</code> and allows us to combine multiple arguments into one string.
+<code>df("Existing keywords: %s", table.concat(keys, ", "))</code>
+
+Now when we type in <code>/remind</code> we can see our saved keywords... or we would see them if we didn't make a big mistake and now get an error.
+In our ''GetKeys'' method we hide the global variable ''table'' with our argument, but we still try to access the ''sort'' method from there. In order to fix this, we need to either assign the sort method to a local variable, or call our argument something else (e.g. array). We prefer the second solution, because it is bad style to overwrite globally defined variables and can cause a lot of unexpected errors as we have seen and once this is fixed, we should now get the expected output.
+
+Or not. We only get <code>Existing keywords: GetInterfaceForCharacter</code>. This is because of how ''ZO_SavedVars'' handles the access to the table internally. The return value from ''NewAccountWide'' is not actually our save data, but instead an interface which provides access to it via a Lua metatable. This means, we would have to get the actual data from the object first in order to iterate over it with ''pairs''. We could access the underlying table with <code>getmetatable(saveData).__index</code>, but we also have another problem if we just iterate over it. As we have seen earlier ''ZO_SavedVars'' creates a ''version'' field in the save data, which we would overwrite if we ever decided to save a note for the keyword "version". To save us all those problems we just create a new table "notes" in the saveData and use that for saving our data instead.
+
+<pre>
+    local saveData = ZO_SavedVars:NewAccountWide("SimpleNotebook_Data", 1)
+    local notes = saveData.notes or {}
+    saveData.notes = notes
+</pre>
+
+<code>saveData.notes or {}</code> returns notes if it is already there or an empty table otherwise and in the next line we always just assign it back to the saveData. We could instead use an <code>if</code> to only do it once, but it doesn't really matter. Don't forget to replace all instances of ''saveData'' with ''notes'' in our methods so we actually access the new table now.
+
+Now that we finally got it to work, we just need to add our <code>/forget</code> command and we are done.
+
+<pre>
+SLASH_COMMANDS["/forget"] = function(keyword)
+    if(keyword == "") then
+        d("Deleted all notes.")
+        notes = {}
+        saveData.notes = notes
+    else
+        df("Deleted %s", keyword)
+        notes[keyword] = nil
+    end
+end
+</pre>
+
+Let's try to forget some or all notes and see if it works properly.
+Looks good, but there are still some cases where the output is a bit lacking or that throw errors.
+When we call <code>/remind</code> before we added anything it will print "Existing keywords: ". We could improve it a bit and print something else if there are no keys in the table. 
+Saving something with <code>/remember</code> also doesn't give any feedback, so we could add another output there. We also should check if it is called with enough arguments to prevent an error message when the keyword is nil.
+And when <code>/remind</code> is called for an non-existing key, there should also be some feedback.
+These improvements are your homework for now.
+
+With this we have taken a first step towards our goal of making a notebook. In this part we learned how to use saved variables and how to manipulate strings.
+In the next part we will take a closer look at the ingame UI and see how we can improve our addon with existing functions.

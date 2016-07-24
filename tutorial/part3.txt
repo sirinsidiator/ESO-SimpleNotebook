@@ -90,4 +90,4 @@ With this we have taken care of it, but we can improve it a bit more, as we know
 
 For some events that fire very often (e.g. ''EVENT_COMBAT_EVENT'') there is an even better way to filter for the calls that we want. Since Update 7 the EventManager has a new method ''AddFilterForEvent'' which allows to let the c-side of the client code handle filtering of some specific arguments. You should read [[AddFilterForEvent|this wiki page]] for more information.
 
-With this we have learned how to react to events and how to split an add-on into multiple files. Next time we will start towards our goal of making a notebook and save data persistently between sessions.
+With this we have learned how to react to events and how to split an add-on into multiple files. [[SimpleNotebookTutorial/part4|Next time]] we will start towards our goal of making a notebook and save data persistently between sessions.
