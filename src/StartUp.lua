@@ -6,6 +6,15 @@ local function GetRandomElement(array)
     return array[index]
 end
 
+local function GetKeys(array)
+    local keys = {}
+    for key in pairs(array) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    return keys
+end
+
 SimpleNotebook.GetRandomElement = GetRandomElement
 
 EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function(eventType, addonName)
@@ -21,4 +30,33 @@ EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function(e
     EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_PLAYER_ACTIVATED, function()
         d(GetJoke())
     end)
+
+    local saveData = ZO_SavedVars:NewAccountWide("SimpleNotebook_Data", 1)
+    local notes = saveData.notes or {}
+    saveData.notes = notes
+
+    SLASH_COMMANDS["/remember"] = function(input)
+        local keyword, message = input:match("(.-) (.-)$")
+        notes[keyword] = message
+    end
+
+    SLASH_COMMANDS["/remind"] = function(keyword)
+        if(keyword == "") then
+            local keys = GetKeys(notes)
+            df("Existing keywords: %s", table.concat(keys, ", "))
+        else
+            d(notes[keyword])
+        end
+    end
+
+    SLASH_COMMANDS["/forget"] = function(keyword)
+        if(keyword == "") then
+            d("Deleted all notes.")
+            notes = {}
+            saveData.notes = notes
+        else
+            df("Deleted %s", keyword)
+            notes[keyword] = nil
+        end
+    end
 end)
