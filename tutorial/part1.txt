@@ -14,13 +14,13 @@ StartUp.lua
 </pre>
 
 In StartUp.lua we now add our first line of code.
-<pre>d("Hello Tamriel!")</pre>
+<source lang="lua">d("Hello Tamriel!")</source>
 The d() function is a shortcut that ZOS has added in order to print some text to the chat window. It is the simplest way to write something on the screen.
 
 Now we reload the UI again. Huh? Nothing happened. Did the code not load? The game won't give any warnings when a file is not found, so always double check if it is written correctly.
 
 Let's change our call. Instead of d() we now call error().
-<pre>error("Hello Tamriel!")</pre>
+<source lang="lua">error("Hello Tamriel!")</source>
 That's a built-in Lua function which stops execution and prints an error message. No way this is not going to work, so let's reload the UI again.
 
 And there it is. We see our first message on the screen. But why doesn't d() print our output to chat?
@@ -33,7 +33,7 @@ There are basically 3 phases:
 
 In the case of the chat system, the chat window is not created until the player has activated for the first time, which basically means that messages which are sent via d() will simply get dropped before the first loading screen disappears. To avoid this, we can wait until the chat system has fully loaded. One way to achieve this is to use zo_callLater() to delay our code execution by a few seconds. 
 
-<pre>zo_callLater(function() d("Hello Tamriel!") end, 2000)</pre>
+<source lang="lua">zo_callLater(function() d("Hello Tamriel!") end, 2000)</source>
 We wrap our call to d() into a function and pass it to zo_callLater(). The second argument specifies how many milliseconds later it should be called.
 This is not completely reliable as the chat could take even longer than two seconds to become ready if we are unlucky, but we hope for the best and just try and see.
 Now when we reload the UI, we should see our output appear once in chat two seconds after the code has loaded. If it doesn't show up, increase the time and reload the UI again.

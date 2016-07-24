@@ -4,7 +4,7 @@ Specifically we will add a new slash command that can be called by typing <code>
 
 Slash commands are simply functions stored in a global Lua table called ''SLASH_COMMANDS''. We will now modify our "Hello World" message to be printed whenever the user wants to see it by adding one such entry to this table.
 
-<pre>SLASH_COMMANDS["/hello"] = function() d("Hello Tamriel!") end</pre>
+<source lang="lua">SLASH_COMMANDS["/hello"] = function() d("Hello Tamriel!") end</source>
 
 Now after we reload the UI the message will be printed to chat whenever we type <code>/hello</code> in chat and press enter.
 
@@ -15,18 +15,18 @@ Let's change our command so it prints random jokes. To do this, we need a table 
 
 First we create a table with some jokes:
 
-<pre>local jokes = {
+<source lang="lua">local jokes = {
     "What's the best way to convince even the most pompous Altmer that you have a good point? Stab them in the chest with it.",
     "What do you get when you cross a Nord, a Dunmer, and an Argonian? Violently Murdered! Blood for the Pact!",
     "What is the thinnest book in the world? Redguard Heroes of the War of Betony.",
-}</pre>
+}</source>
 
 It is always a good idea to define variables locally at first in order to avoid polluting the global namespace. That way other add-ons cannot accidentally overwrite parts of our add-on and we also won't do the same to them. If we want to make things accessible to others, the established way to do so is to create one global table that has the same name as the add-on and put things in there, but more about that in another part.
 
 Now that we have our jokes in place, we want to select one of them.
 For starters we change the name of the command and just print our table of jokes to see if it works:
 
-<pre>SLASH_COMMANDS["/joke"] = function() d(jokes) end</pre>
+<source lang="lua">SLASH_COMMANDS["/joke"] = function() d(jokes) end</source>
 
 There are two things to notice here. First, the d() command is capable of printing our tables. It is really flexible and can even handle recursive tables and other data types. We can even pass more than one argument and it will just print everything. Secondly Lua starts numerically indexed tables (called arrays in some other languages) at 1 and not at 0, but we already knew that, right?
 
@@ -38,11 +38,11 @@ This shows the numbers 1, 2 and 3 randomly when we run it a couple of times, but
 
 Let's put everything together:
 
-<pre>SLASH_COMMANDS["/joke"] = function() d(jokes[1 + math.floor(math.random() * #jokes)]) end</pre>
+<source lang="lua">SLASH_COMMANDS["/joke"] = function() d(jokes[1 + math.floor(math.random() * #jokes)]) end</source>
 
 This works, but looks a bit confusing. Let's spread the code out a bit so it is easier readable:
 
-<pre>local function GetRandomElement(array)
+<source lang="lua">local function GetRandomElement(array)
     local random = math.random() * #array
     local index = 1 + math.floor(random)
     return array[index]
@@ -50,7 +50,7 @@ end
 
 SLASH_COMMANDS["/joke"] = function() 
     d(GetRandomElement(jokes)) 
-end</pre>
+end</source>
 
 This looks nice and tells us some jokes, but what about other people? Why not print it to the "say" chat?
 The API does not allow us to print things to chat directly except for the local debug output, but we can at least prepare the chat message so we only have to hit enter.
@@ -60,9 +60,9 @@ It accepts a message, an optional channel constant and a target name in case we 
 
 In our case we want to talk to the say channel, so we need to pass ''CHAT_CHANNEL_SAY''.
 
-<pre>SLASH_COMMANDS["/joke"] = function() 
+<source lang="lua">SLASH_COMMANDS["/joke"] = function() 
     StartChatInput(GetRandomElement(jokes), CHAT_CHANNEL_SAY)
-end</pre>
+end</source>
 
 Now we just need to type ''/joke'' and hit enter twice to get our joke out into the world.
 
