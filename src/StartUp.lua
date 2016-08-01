@@ -37,13 +37,24 @@ EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function(e
 
     SLASH_COMMANDS["/remember"] = function(input)
         local keyword, message = input:match("(.-) (.-)$")
-        notes[keyword] = message
+        if(keyword and message and keyword ~= "" and message ~= "") then
+            notes[keyword] = message
+            df("Storing note for keyword %s", keyword)
+        else
+            d("Could not store note. Invalid input")
+        end
     end
 
     SLASH_COMMANDS["/remind"] = function(keyword)
         if(keyword == "") then
             local keys = GetKeys(notes)
-            df("Existing keywords: %s", table.concat(keys, ", "))
+            if(#keys > 0) then
+                df("Existing keywords: %s", table.concat(keys, ", "))
+            else
+                d("Nothing stored yet")
+            end
+        elseif(not notes[keyword]) then
+            df("No note stored for keyword %s", keyword)
         else
             d(notes[keyword])
         end
@@ -51,7 +62,7 @@ EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function(e
 
     SLASH_COMMANDS["/forget"] = function(keyword)
         if(keyword == "") then
-            d("Deleted all notes.")
+            d("Deleted all notes")
             notes = {}
             saveData.notes = notes
         else
