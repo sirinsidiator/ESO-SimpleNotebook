@@ -1,7 +1,7 @@
 ## Title: Simple Notebook
 ## Author: sirinsidiator
 ## Version: 1.0
-## APIVersion: 100015
+## APIVersion: 100016
 ## SavedVariables: SimpleNotebook_Data
 ##
 ## This Add-on is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. 
@@ -12,3 +12,4 @@
 
 StartUp.lua
 jokes.lua
+Storage.lua

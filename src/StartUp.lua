@@ -1,73 +1,89 @@
 SimpleNotebook = {}
 
+local ADDON_NAME = "SimpleNotebook"
+
+local function Print(message, ...)
+    df("[%s] %s", ADDON_NAME, message:format(...))
+end
+
 local function GetRandomElement(array)
     local random = math.random() * #array
     local index = 1 + math.floor(random)
     return array[index]
 end
 
-local function GetKeys(array)
-    local keys = {}
-    for key in pairs(array) do
-        keys[#keys + 1] = key
+local keywordColor = ZO_ColorDef:New("0094FF")
+local function AugmentKeyword(keyword)
+    keyword = string.format("|H%d:%s|h%s|h", LINK_STYLE_DEFAULT, ADDON_NAME, keyword)
+    return keywordColor:Colorize(keyword)
+end
+
+local function ForEach(table, func)
+    for i, key in ipairs(table) do
+        table[i] = func(key)
     end
-    table.sort(keys)
-    return keys
 end
 
 SimpleNotebook.GetRandomElement = GetRandomElement
 
-EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED, function(eventType, addonName)
-    if addonName ~= "SimpleNotebook" then return end
-    EVENT_MANAGER:UnregisterForEvent("SimpleNotebook", EVENT_ADD_ON_LOADED)
+EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, function(eventType, addonName)
+    if addonName ~= ADDON_NAME then return end
+    EVENT_MANAGER:UnregisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED)
 
     local GetJoke = SimpleNotebook.GetJoke
+    local Storage = SimpleNotebook.Storage
 
     SLASH_COMMANDS["/joke"] = function()
         StartChatInput(GetJoke(), CHAT_CHANNEL_SAY)
     end
 
-    EVENT_MANAGER:RegisterForEvent("SimpleNotebook", EVENT_PLAYER_ACTIVATED, function()
-        d(GetJoke())
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PLAYER_ACTIVATED, function()
+        Print(GetJoke())
     end)
 
     local saveData = ZO_SavedVars:NewAccountWide("SimpleNotebook_Data", 1)
-    local notes = saveData.notes or {}
-    saveData.notes = notes
+    local storage = Storage:New(saveData)
 
     SLASH_COMMANDS["/remember"] = function(input)
         local keyword, message = input:match("(.-) (.-)$")
         if(keyword and message and keyword ~= "" and message ~= "") then
-            notes[keyword] = message
-            df("Storing note for keyword %s", keyword)
+            storage:SetNote(keyword, message)
+            Print("Storing note for keyword %s", AugmentKeyword(keyword))
         else
-            d("Could not store note. Invalid input")
+            Print("Could not store note. Invalid input")
         end
     end
 
     SLASH_COMMANDS["/remind"] = function(keyword)
         if(keyword == "") then
-            local keys = GetKeys(notes)
-            if(#keys > 0) then
-                df("Existing keywords: %s", table.concat(keys, ", "))
+            if(storage:HasNotes()) then
+                local keys = storage:GetKeys()
+                ForEach(keys, AugmentKeyword)
+                Print("Existing keywords: %s", table.concat(keys, ", "))
             else
-                d("Nothing stored yet")
+                Print("Nothing stored yet")
             end
-        elseif(not notes[keyword]) then
-            df("No note stored for keyword %s", keyword)
+        elseif(not storage:HasNote(keyword)) then
+            Print("No note stored for keyword %s", AugmentKeyword(keyword))
         else
-            d(notes[keyword])
+            Print(storage:GetNote(keyword))
         end
     end
 
     SLASH_COMMANDS["/forget"] = function(keyword)
         if(keyword == "") then
-            d("Deleted all notes")
-            notes = {}
-            saveData.notes = notes
+            Print("Deleted all notes")
+            storage:DeleteAllNotes()
         else
-            df("Deleted %s", keyword)
-            notes[keyword] = nil
+            Print("Deleted %s", AugmentKeyword(keyword))
+            storage:DeleteNote(keyword)
         end
     end
+
+    LINK_HANDLER:RegisterCallback(LINK_HANDLER.LINK_MOUSE_UP_EVENT, function(link, button, keyword, linkStyle, linkType)
+        if(linkType == ADDON_NAME) then
+            StartChatInput(string.format("/remind %s", keyword))
+            return true
+        end
+    end)
 end)
