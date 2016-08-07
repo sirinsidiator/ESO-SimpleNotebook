@@ -1,0 +1,207 @@
+In case you did your homework from [[SimpleNotebookTutorial/part4|last time]] and are keen to compare your results, I have created a [https://github.com/sirinsidiator/ESO-SimpleNotebook github repository] where you can find the code for all the previous and - once they are released - future chapters.
+
+Now before we go down the rabbit hole that making a GUI is, we will take a closer look at the API of Elder Scrolls Online and learn how to find useful information about functions and variables inside and outside of the game.
+For a general overview of all available functions there are two places where we find the names of all variables. Here on the wiki and in the ESOUIDocumentation.txt that is provided by ZOS together with the [https://forums.elderscrollsonline.com/en/categories/add-ons-and-ui-mods API patch notes] on each update. The wiki is updated by authors, so it may be outdated from time to time and the text file provided by ZOS does not contain all information either as it is just a dump from their internal wiki, so it's best to check both places and also look ingame before assuming that something does not exist.
+
+Besides that, there is also the full UI source code. While ZOS does not give us access to it themselves, they also do not mind us gaining it on our own. So as a result, some smart people have written tools to extract the Lua and XML files from the game files and thanks to this we can look at the source online, or download it to our PCs.
+It is available on [https://github.com/ESOUI/ESOUI github], the [http://esodata.uesp.net/current/index.html UESP], or as a [http://www.esoui.com/downloads/info1213-ESOUI-TheElderScrollsOnlinesourcecode.html download] on ESOUI. In case you want to use it offline, make sure that you have some editor which allows you to search all files.
+
+The first thing to notice, is that there is an enormous amount of code and there is probably no one who has read it all.
+Let's go over the basic structure. First of all the code is split into 3 major parts: pregame, ingame and internal ingame.
+pregame is everything before a character is loaded and internal ingame are parts like the crown store. Both of them are off limits to addon authors, so we won't bother looking into them deeper.
+The ingame components are further divided into global and common code - like localization, font & sound definitions and libraries - which offers a lot of reusable components and the actual ingame code.
+
+Let's take a closer look at the ingame folder.
+This contains a load of subfolders which are basically addons made by ZOS that provide every menu and interface element that you can see in the game.
+They usually contain a Lua file for the functionality and an XML file that defines the GUI. In many folders you will also notice that the structure has been broken up into shared, keyboard and gamepad. The gamepad and keyboard UI are both loaded at the same time which is necessary to allow switching between them on the fly.
+It is important to keep this in mind, because it can lead to some unexpected outputs. For example it may happen that you try to hook into shared code and expect it to run once, but it runs twice because the gamepad UI is calling the same code in the background.
+
+When you look at some of the source files you will also notice some differences in how they are structured.
+Some of them use ''ZO_Object'' to appear like object oriented code - although Lua isn't - and some just use simple tables. Some are broken up into multiple files and some contain all code in one large file. And finally some have many points were addons can hook into them and some contain a lot of local variables that cannot be accessed from the outside.
+This can be attributed to the different programmers that wrote the code and also changes in policy during the more than 8 years since development of ESO has started.
+
+For our notebook we will now take a closer look at ''ZO_Object'' and see how we can use it to structure our code.
+First search and open the file that contains the source for ''ZO_Object' in one of the provided mirrors of the source code. Small hint, it is not called <code>ZO_Object.lua</code> and it is located in <code>libaries/utilities</code>.
+
+The file contains three functions. ''New'', ''Subclass'' and ''Multisubclass''.
+''Subclass'' is the thing you want to call when you create a new "class". As mentioned, Lua does not know anything about classes, so all that actually happens is some [https://www.lua.org/pil/13.html metatable magic] which allows us to redirect lookups on the "subclass" table to the "baseclass" table. That way we can tell ourselves that we have classes and inheritance and also do not need to store a separate function on each "instance" of an object.
+The ''Multisubclass'' function is basically the same, but it will iterate over all base class tables when looking for a missing key. And the ''New'' function is what actually sets the metatables in a way that makes it behave like an object.
+
+But enough meta for now. The first thing we will do with this newly obtained knowledge is to warp our storage into a class. For this purpose we make a new file and call it <code>Storage.lua</code>.
+Inside we will create a subclass of ''ZO_Object'' called ''Storage'' and expose it in our namespace.
+
+<source lang="lua">
+local Storage = ZO_Object:Subclass()
+SimpleNotebook.Storage = Storage
+</source>
+
+Next we define a constructor called ''New'' that takes the ''saveData'' table as its sole argument. We could also choose a different name, but ZOS uses it like this everywhere so we will also call it like that.
+
+<source lang="lua">
+function Storage:New(saveData)
+    local storage = ZO_Object.New(self)
+    storage.notes = saveData.notes or {}
+    saveData.notes = storage.notes
+    return storage
+end
+</source>
+
+There are three things to take note of here: 
+* We do not use the ''local'' keyword for the function definition, because the subclass table is already defined locally. 
+* We assign the ''notes'' table to a variable ''self'', but ''self'' is never explicitly declared in our code.
+* We don't use ''self'' directly as our object, because it refers to the subclass table in this context, instead we call ''ZO_Object.New'' and pass ''self'' to the function to create a new table. 
+
+The implicit definition of ''self'' happens because of the <code>:</code> (colon) operator. When we define a function with <code>:</code> instead of <code>.</code> (dot) before the function name, Lua automatically stores the first passed argument into the ''self'' variable. If we were to use <code>.</code> we would instead have to write <code>function Storage.New(self, saveData)</code>.
+
+The second place where the <code>:</code> operator is used is when the function is called. In this case it will automatically pass the table where the function is stored to the function.
+<source lang="lua">
+local store = Storage:New(saveData)
+</source>
+You could also call it as <code>Storage.New(Storage, saveData)</code>, but the first variation undoubtedly makes it look simpler and should be preferred when possible.
+
+Now we can create methods for all of our features from the previous part of the tutorial in our new class.
+
+<source lang="lua">
+function Storage:GetKeys(key)
+    local keys = {}
+    for key in pairs(self.notes) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+    return keys
+end
+
+function Storage:GetNote(key)
+	return self.notes[key]
+end
+
+function Storage:SetNote(key, note)
+	self.notes[key] = note
+end
+
+function Storage:DeleteNote(key)
+	self.notes[key] = nil
+end
+</source>
+
+The ''DeleteAllNotes'' function will have to be a bit different to before, unless we also save a reference to ''saveData'' in our object, but we are here to learn something new, so we won't do that.
+
+<source lang="lua">
+function Storage:DeleteAllNotes()
+	for key in pairs(self.notes) do
+		self.notes[key] = nil
+	end
+end
+</source>
+
+This is the preferred way when cleaning out a non-contiguous table, because we can reuse the old table which means no memory allocation and less work for the garbage collector which results in better performance and happy users.
+Coincidentally ZOS also uses this to clear tables and has already made a function which does exactly the same thing. When we search the UI source code for the regexp <code>clear.*table</code> we will quickly find that there is a method called ''ZO_ClearTable'' in <code>zo_tableutils.lua</code> among many other useful things.
+
+<source lang="lua">
+function Storage:DeleteAllNotes()
+	ZO_ClearTable(self.notes)
+end
+</source>
+
+Looking through our code in <code>Startup.lua</code> it may also be useful to create two methods ''HasNotes()'' and ''HasNote(key)'' for our storage object.
+
+<source lang="lua">
+function Storage:HasNotes()
+    return next(self.notes) ~= nil
+end
+
+function Storage:HasNote(key)
+    return self.notes[key] ~= nil
+end
+</source>
+
+The ''next'' method is provided by Lua and returns the next element in a table and basically is how ''pairs'' accesses elements internally.
+Now we just need to add the new file to the manifest and replace our old code and we are set. Let's reload the UI and try all our slash commands again.
+Once we are done and have confirmed that everything is still working, we can proceed to improve our output.
+
+First of all, every addon that prints something to chat should prefix the output with its own addon name, so that users can know where some output comes from. For this purpose we will create a method that will handle all our output from now on and automatically prefix it with "[SimpleNotebok]".
+
+<source lang="lua">
+local function Print(message, ...)
+	df("[%s] %s", ADDON_NAME, message:format(...))
+end
+</source>
+
+This function works analogous to ''df()'' with the difference that it prefixes the message with our addon name.
+We define ''ADDON_NAME'' as a variable as we already use the name in a couple of places and that way we do not have to change all occurrences in case we ever rename the addon.
+
+Next we will add a bit of color to our output and make our keywords look different from the rest of the message. ESO offers a few ways to format strings from the inside via tags. These use a <code>|</code> (pipe) to signal that the next character is a command, followed by a single character that specifies the function and then followed by a number of arguments for that function, separated by a <code>:</code>.
+In order to change the color of all subsequent output we use <code>|cRRGGBB</code> and to return back to the original color <code>|r</code>. Unfortunately ESO does not support nested tags, so we can only return to the color that is specified in the UI element itself and not the previous color specified via <code>|c</code>.
+We can manually add the color tags to our keywords, but ZOS has of course already made some helper functions to do that for us. When we search the source for the keyword "color" we will find ''ZO_ColorDef'' which is an object that holds a color definition and allows us to retrieve it in different forms.
+When we take a look at its source code, we can see that it has a constructor that takes up to 4 arguments <code>r, g, b, a</code> between 0 and 1 or converts <code>r</code> from a HTML color code when it is a string. Besides that there is a method ''Colorize'' that puts the necessary tag around its argument and returns the resulting string.
+So we define a color that pleases our eye and store it in a local variable to avoid having to recreate the object every time we want to use it.
+
+<source lang="lua">
+local keywordColor = ZO_ColorDef:New("0094FF")
+</source>
+
+For most cases we can simply write:
+<source lang="lua">
+Print("Storing note for keyword %s", keywordColor:Colorize(keyword))
+</source>
+For the list of keywords in <code>/remind</code> we do not want to color the commas, so we will have to iterate over the keys table and colorize each individual element. For that purpose we create a local function ''ColorizeAll'' and pass the table and color to it. We do not have to return anything as tables are passed by reference and when we change the elements inside the function, they will stay that way when we are back outside.
+
+<source lang="lua">
+local function ColorizeAll(table, color)
+    for i, key in ipairs(table) do
+        table[i] = color:Colorize(key)
+    end
+end
+</source>
+
+Now that our keywords are in a different color, how about we make them automatically populate chat with the correct command when we click them?
+We can create a click handler for our text with the help of the <code>|H</code> tag which is also what is used for item and achievement links.
+When we send a custom handler via chat to another player it wouldn't render as a link, but locally we can use them just fine. 
+
+The first step is to select a unique handler name. For our purpose we just call it the same as our addon. The resulting links need to look like this: <code>|H0:SimpleNotebook|hkeyword|h</code>.
+The number after the <code>|H</code> determines whether there are brackets around the label of the link, where zero means no brackets. The two possible states are also defined as variables called ''LINK_STYLE_DEFAULT'' and ''LINK_STYLE_BRACKETS''. The text between the <code>|h</code> tags specifies the displayed label for the link. 
+Because we cannot nest tags, we need to put the color tag outside of the link. We need to do this for every keyword, so let's combine adding the color and the link in a new local function ''AugmentKeyword'' that accepts a keyword and returns a link with a color.
+
+<source lang="lua">
+local function AugmentKeyword(keyword)
+    keyword = string.format("|H%d:%s|h%s|h", LINK_STYLE_DEFAULT, ADDON_NAME, keyword)
+    return keywordColor:Colorize(keyword)
+end
+</source>
+
+Now that we no longer simply apply a color we can adjust our ''ColorizeAll'' method a bit and make it more generic.
+Let's rename it to ''ForEach'' and change it so that it accepts a table and a function and applies the latter to each element in the table.
+
+<source lang="lua">
+local function ForEach(table, func)
+    for i, key in ipairs(table) do
+        table[i] = func(key)
+    end
+end
+</source>
+
+With that have successfully created a link that will throw an error "TooltipControl: Attempt to set invalid or malformed link." when clicked.
+This doesn't tell us much, so how do we find out what exactly happens and where in the UI source we should start looking? We could guess some keywords like before, or we install the developer addon [http://www.esoui.com/downloads/info942-ZgoowithSavedVarsandDelete.html zgoo] and start digging into the structure of the UI.
+After we have the addon up and running, we can use a new slash command <code>/zgoo mouse</code> which will show us the UI element that is below the mouse when we press enter. We can also bind it to a key for easy access.
+Using it on the tooltip tells us that it is called "PopupTooltip" and when we search the source code for it, we see that there is a method ''ZO_PopupTooltip_SetLink'' that is used in <code>zo_linkhandler.lua</code>. Sounds like we found the right place.
+In the ''HandleLinkMouseEvent'' function we can see that the default code is not run when <code>LINK_HANDLER:FireCallbacks</code> returns true. ''LINK_HANDLER'' is a ''ZO_CallbackObject'' which allows us to register for an event, similar to how the ''EVENT_MANAGER'' works. The difference is that we can fire our own callbacks in contrast to real events that only come from the game itself.
+
+Before we can register our own callback we need to find out which event is used for the chat links. We can see that there are two possible types which are passed to ''HandleLinkMouseEvent'' in ''ZO_LinkHandler_OnLinkClicked'' and ''ZO_LinkHandler_OnLinkMouseUp''.
+When we search the source code for those two methods we will find that only ''ZO_LinkHandler_OnLinkMouseUp'' is used in the ingame code, so we register for the latter of the two types.
+
+Now we just need to check out the callback object and find out how we can return true from ''FireCallbacks'' and what arguments we need to pass to it.
+In the code for the callback object we can see that it is as simple as returning true from our registered method. The comment also tells us that only the most recent value that is not ''nil'' or ''false'' will be returned when multiple callbacks are registered.
+We can also see that all arguments after the eventType are simply passed to ''FireCallbacks''. In our case we get ''link'' and ''button'' followed by the return values from ''ZO_LinkHandler_ParseLink''. This method splits a link up into its parts and returns the text, style and all of its data.
+Which means we get them in the order ''keyword'', ''linkStyle'' and ''linkType''. So we just need to check that the ''linkType'' is our addon name, then pass the slash command and keyword to the ''StartChatInput'' method like we did before with our jokes and return true after that.
+<source lang="lua">
+LINK_HANDLER:RegisterCallback(LINK_HANDLER.LINK_MOUSE_UP_EVENT, function(link, button, keyword, linkStyle, linkType)
+	if(linkType == ADDON_NAME) then
+		StartChatInput(string.format("/remind %s", keyword))
+		return true
+	end
+end)
+</source>
+
+Besides what we have seen now, there are also other ways to augment text, but we won't handle them in this tutorial. If you want to read more about it, check out this [[Text_Formatting|wiki page]].
+With this we have learned how to create and use objects, how to colorize text and handle links, how to register for callbacks and how to find information about the inner workings of the UI.
+Now that we know about these fundamental things, we are ready for more advanced topics and next time we will start building our GUI. 

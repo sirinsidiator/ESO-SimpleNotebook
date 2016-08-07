@@ -35,8 +35,8 @@ In order to get our keyword we need to split this input string on the first spac
 
 <source lang="lua">
 SLASH_COMMANDS["/remember"] = function(input) 
-    local keyword, message = input:match("(.-) (.-)$")
-    saveData[keyword] = message
+	local keyword, message = input:match("(.-) (.-)$")
+	saveData[keyword] = message
 end
 </source>
 Lua string matching uses its own unique [http://lua-users.org/wiki/PatternsTutorial patterns] that reminds a bit of regular expressions, but are a lot more limited. We look for the shortest matching string <code>.-</code> before a space and store it <code>()</code>. We also store the remaining string after the space to the end of the line <code>$</code>.
@@ -44,7 +44,7 @@ Lua string matching uses its own unique [http://lua-users.org/wiki/PatternsTutor
 In order to show what we just stored, we create the <code>/remind</code> command:
 <source lang="lua">
 SLASH_COMMANDS["/remind"] = function(keyword)
-    d(saveData[keyword])
+	d(saveData[keyword])
 end
 </source>
 For this command we simply expect the keyword as parameter and don't need to split the input.
@@ -77,12 +77,12 @@ Now that we have set up our basic functionality, we also want to show the list o
 First we create a function to retrieve the keys. The easiest way is to just iterate over all existing elements and put them in a new table. To iterate over a non numeric table we can use ''pairs()'', but it won't have any particular order, so we also need to sort the elements.
 <source lang="lua">
 local function GetKeys(table)
-    local keys = {}
-    for key in pairs(table) do
-        keys[#keys + 1] = key
-    end
-    table.sort(keys)
-    return keys
+	local keys = {}
+	for key in pairs(table) do
+		keys[#keys + 1] = key
+	end
+	table.sort(keys)
+	return keys
 end
 </source>
 
@@ -93,12 +93,12 @@ While it is possible to build the string while we iterate over the table, it is 
 
 <source lang="lua">
 SLASH_COMMANDS["/remind"] = function(keyword)
-    if(keyword == "") then
-        local keys = GetKeys(saveData)
-        d("Existing keywords: ", table.concat(keys, ", "))
-    else
-        d(saveData[keyword])
-    end
+	if(keyword == "") then
+		local keys = GetKeys(saveData)
+		d("Existing keywords: ", table.concat(keys, ", "))
+	else
+		d(saveData[keyword])
+	end
 end
 </source>
 
@@ -122,14 +122,14 @@ Now that we finally got it to work, we just need to add our <code>/forget</code>
 
 <source lang="lua">
 SLASH_COMMANDS["/forget"] = function(keyword)
-    if(keyword == "") then
-        d("Deleted all notes.")
+	if(keyword == "") then
+		d("Deleted all notes.")
         notes = {}
         saveData.notes = notes
-    else
-        df("Deleted %s", keyword)
+	else
+		df("Deleted %s", keyword)
         notes[keyword] = nil
-    end
+	end
 end
 </source>
 
@@ -141,4 +141,4 @@ And when <code>/remind</code> is called for an non-existing key, there should al
 These improvements are your homework for now.
 
 With this we have taken a first step towards our goal of making a notebook. In this part we learned how to use saved variables and how to manipulate strings.
-In the next part we will take a closer look at the ingame UI and see how we can improve our addon with existing functions.
+In the [[SimpleNotebookTutorial/part5|next part]] we will take a closer look at the ingame UI and see how we can improve our addon with existing functions.
