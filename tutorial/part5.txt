@@ -21,7 +21,7 @@ Some of them use ''ZO_Object'' to appear like object oriented code - although Lu
 This can be attributed to the different programmers that wrote the code and also changes in policy during the more than 8 years since development of ESO has started.
 
 For our notebook we will now take a closer look at ''ZO_Object'' and see how we can use it to structure our code.
-First search and open the file that contains the source for ''ZO_Object' in one of the provided mirrors of the source code. Small hint, it is not called <code>ZO_Object.lua</code> and it is located in <code>libaries/utilities</code>.
+First search and open the file that contains the source for ''ZO_Object'' in one of the provided mirrors of the source code. Small hint, it is not called <code>ZO_Object.lua</code> and it is located in <code>libaries/utilities</code>.
 
 The file contains three functions. ''New'', ''Subclass'' and ''Multisubclass''.
 ''Subclass'' is the thing you want to call when you create a new "class". As mentioned, Lua does not know anything about classes, so all that actually happens is some [https://www.lua.org/pil/13.html metatable magic] which allows us to redirect lookups on the "subclass" table to the "baseclass" table. That way we can tell ourselves that we have classes and inheritance and also do not need to store a separate function on each "instance" of an object.
@@ -204,4 +204,4 @@ end)
 
 Besides what we have seen now, there are also other ways to augment text, but we won't handle them in this tutorial. If you want to read more about it, check out this [[Text_Formatting|wiki page]].
 With this we have learned how to create and use objects, how to colorize text and handle links, how to register for callbacks and how to find information about the inner workings of the UI.
-Now that we know about these fundamental things, we are ready for more advanced topics and next time we will start building our GUI. 
+Now that we know about these fundamental things, we are ready for more advanced topics and [[SimpleNotebookTutorial/part6|next time]] we will start building our GUI. 

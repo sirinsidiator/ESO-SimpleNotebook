@@ -1,0 +1,172 @@
+As promised [[SimpleNotebookTutorial/part5|last time]], it is now time to start making some UI for our notebook.
+The GUI system in ESO is one of the most extensive and complex parts of addon development and very hard to get into, because the documentation doesn't tell us how things need to be put together, the source code is way too complicated for beginners and when something goes wrong, there usually is no descriptive error.
+
+The first step we will take is to create a window for our notebook. The GUI works a bit like the DOM in HTML and has a root node called ''GuiRoot'' which holds all top level elements. There are [[Controls|many different types]] of elements that have different features, but they all are basically subclasses of the basic ''Control'' type, which is why we simply call them controls. One of these types is the ''TopLevelControl'', which isn't really different from the base control type, but it has a few features that make it work like a window in our OS and allow it to be brought to top among some other things. It is called ''TopLevelControl'', but we can attach just any other control to ''GuiRoot'' too.
+
+There are basically two ways how we can create our GUI and both have their pros and cons. We can either use Lua code to create them, or define them via xml files.
+The first way is useful when we only need a few simple controls and the second way is great for building a larger interface with many controls as it is easier to read and maintain and also offers some features that allow us to reuse parts as templates. These two ways can also be mixed in order to create a complex UI where new parts are dynamically added.
+
+For our notebook we will use the second way and create a new xml file called <code>Window.xml</code>. We add the following code in the new file and also add the filename to the end of our addon manifest so it is loaded.
+
+<source lang="xml">
+<GuiXml>
+    <Controls>
+        <TopLevelControl name="SimpleNotebookWindow">
+        </TopLevelControl>
+    </Controls>
+</GuiXml>
+</source>
+
+The control cannot be named ''SimpleNotebook'' because we already use that for our namespace table and every control automatically is assigned to a global variable with the same name.
+After we reload the UI we won't see any difference, but when we use <code>/zgoo SimpleNotebookWindow</code> we will see that our control is really there.
+Let's define a position and size for it and give it some background so we can also see it without using ''zgoo''.
+
+<source lang="xml">
+<TopLevelControl name="SimpleNotebookWindow">
+    <Dimensions x="200" y="200" />
+    <Anchor point="CENTER" />
+</source>
+This will put it into the center of the screen with a size of 200 by 200 pixel.
+
+<source lang="xml">
+<Controls>
+    <Backdrop name="$(parent)Bg" inherits="ZO_DefaultBackdrop" />
+</Controls>
+</source>
+And this will add the standard background that is for example used by the error window.
+
+Here we already can see the power of XML created controls as it allows us to reuse an existing UI element with just one line of code. 
+When we search for ''ZO_DefaultBackground'' in the libraries folder we will see that it has quite a few properties defined and also a child control, but when we look for ''ZO_DefaultBackdrop'' with ''zgoo'' it won't show us a control like it did with our window. This is because of the ''virtual'' property. A virtual control is something like a blueprint, so it does not actually exist in the GUI, but there are several ways how they are accessed and inheriting their information is one of them.
+
+We also use <code>$(parent)</code> to avoid having to write the full name on every child element of our window and it will automatically be expanded to ''SimpleNotebookWindowBg'' in our case. This is not exclusive to creating controls via XML and can also be used when we use Lua to create one as the underlying functionality is the same.
+
+Now when we reload the UI we can see our window, but besides that there is nothing much we can do with it yet.
+
+Before we continue, let's install another development addon - [http://www.esoui.com/downloads/info1159-MerTorchbug.html Mer TorchBug] - and reload the UI again.
+When we enter <code>/tbug SimpleNotebookWindow</code> we will see a fancy new window showing us the properties of our own window.
+On top of that we can also edit them in real time! Let's try that with the size. We can change the width and height to twice the size by right clicking on their values, selecting all text and pressing enter after we typed the new size. This change is of course only there until we reload the UI and there are also some properties that we cannot change with ''Torchbug'', but it is still a great way to quickly try some simple changes to the layout.
+
+One of the things we cannot change is the ''movable'' property, so let's go back to the editor and adjust our window so we can move it around on the screen.
+
+<source lang="xml">
+<TopLevelControl name="SimpleNotebookWindow" mouseEnabled="true" movable="true">
+</source>
+
+Now we can move it after an UI reload, but when we drag it beyond the borders of the screen, it will disappear. In order to prevent loosing it completely we can set ''clampedToScreen'' to ''true'' and confine it to the game window.
+
+Currently the position of the window also will reset whenever we reload the UI. In order to change that we need to store it in our addon's saved variables and restore it on load. We could just continously save the current location of the window, but that would be inefficient. Every control has a set of handlers that can be used to react to changes in the control similar to how events work, so instead we register a handler and only save the position when it has changed
+
+We can find a list of all available handlers for a control type on [[UI_XML|this wiki page]] or in the ESOUIDocumentation.txt. The handler we are looking for is called ''OnMoveStop''.
+We could register the it in our XML file, but in this case where we need access to our ''saveData'' it is easier to just handle it in our Lua code, so we put the following code at the end of our ''ADDON_LOADED'' handler.
+
+<source lang="lua">
+SimpleNotebookWindow:SetHandler("OnMoveStop", function(control)
+    local x, y = control:GetScreenRect()
+    Print("move stopped at %d/%d", x, y) 
+end)
+</source>
+
+This will show us the screen coordinates of the top left point of our window whenever we stop moving it around.
+In order to restore the position we need to first store them to our ''saveData'' table, but instead of just putting it there and making a mess we will create a new table for our window properties.
+Once we have stored them we will need to set the anchor of our window to the saved position, so we check if our properties table already exists and use ''ClearAnchors'' and ''SetAnchor'' to restore the position.
+
+<source lang="lua">
+local window = SimpleNotebookWindow
+if(saveData.window) then
+    window:ClearAnchors()
+    window:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, saveData.window.x, saveData.window.y)
+else
+    local x, y = window:GetScreenRect()
+    saveData.window = { x=x, y=y }
+end
+</source>
+
+Don't forget to replace our debug output with code to actually save the coordinates in the ''saveData''.
+
+While we are at it, we can also allow our window to be resized. Resizing is enabled by setting the ''resizeHandleSize'' property to a value greater than zero. 
+
+<source lang="xml">
+<TopLevelControl name="SimpleNotebookWindow" mouseEnabled="true" movable="true" resizeHandleSize="8">
+</source>
+
+Once that is done, the window can be resized and will start to fire the ''OnResizeStart'' and ''OnResizeStop'' handlers. ''OnResizeStart'' is necessary in cases where we have some more complex window with controls that do not automatically react to a resize and thus need to be manually adjusted in the ''OnUpdate'' handler during the resize, but for now it is enough to just save the new size in ''OnResizeStop''.
+
+<source lang="lua">
+window:SetHandler("OnResizeStop", function(control)
+    local width, height = control:GetDimensions()
+    saveData.window.width = width
+    saveData.window.height = height
+end)
+</source>
+
+To restore the previous size we can use either ''SetWidth'' and ''SetHeight'' or just ''SetDimensions'' right below our call to ''SetAnchor''.
+
+<source lang="lua">
+if(saveData.window) then
+    window:ClearAnchors()
+    window:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, saveData.window.x, saveData.window.y)
+    window:SetDimensions(saveData.window.width, saveData.window.height)
+else
+    local x, y = window:GetScreenRect()
+    local width, height = control:GetDimensions()
+    saveData.window = { x=x, y=y, width=width, height=height }
+end
+</source>
+
+Once we reload it, our window is suddenly reduced to a small square and we cannot resize it at all. This happened because we already have created the ''saveData.window'' table, but it didn't contain values for width and height. We could use ''Torchbug'' to change the size again, but in order to prevent something like this from happening again when we resize it too small, we can define dimensional constraints below our dimensions in the XML file.
+
+<source lang="xml">
+<DimensionConstraints minX="200" minY="200" />
+</source>
+
+Now when we reload we will see our window is back to normal again and can be resized fine, but the location where we need to move the cursor in order to get the resize icon doesn't match up with the background.
+In order to fix this we will need to overwrite the anchor points that are defined in the ''ZO_DefaultBackdrop''.
+
+<source lang="xml">
+<Backdrop name="$(parent)Bg" inherits="ZO_DefaultBackdrop">
+    <Anchor point="TOPLEFT" offsetX="0" offsetY="0" />
+    <Anchor point="BOTTOMRIGHT" offsetX="0" offsetY="0" />
+</Backdrop>
+</source>
+
+Instead of using these specific anchor points and setting them to zero we can also use the shortcut expression <code><AnchorFill /></code> which will do the same thing.
+
+With this we have a movable, resizeable window that remembers its size and location between sessions.
+Now we are just missing a way to change the visibility of our window when we don't need it.
+
+The default state of our notebook should be that it is hidden, so let's change that first and make it disappear.
+
+<source lang="xml">
+<TopLevelControl name="SimpleNotebookWindow" mouseEnabled="true" movable="true" resizeHandleSize="8" clampedToScreen="true" hidden="true">
+</source>
+
+In order to be able to toggle our window let's add a new slash command <code>/simplenotebook</code>.
+<source lang="lua">
+SLASH_COMMANDS["/simplenotebook"] = function()
+    window:SetHidden(not window:IsHidden())
+end
+</source>
+
+Like with the position and size of our window we could also save the visibility and restore it after reloading the UI, but it is usually better to just leave it hidden on load and let the user open it manually when he needs it.
+
+While the most direct way is to use the ''hidden'' attribute and ''SetHidden'' directly when we want to change the state of a control, it is also important to know that ESO has a ''SceneManager'' which is used for handling the state of almost all UI elements that we can see in the vanilla UI.
+Menus like the inventory or the world map are all scenes, while individual parts that make up a scene like the key binds at the bottom or even the compass are called ''SceneFragments''.
+
+Let's see what this means and create a fragment of our own.
+<source lang="lua">
+local fragment = ZO_SimpleSceneFragment:New(SimpleNotebookWindow)
+HUD_UI_SCENE:AddFragment(fragment)
+</source>
+
+With these two lines our window will automatically show when we switch to the cursor mode and disappear again when we move around or open a menu.
+We can also easily create our own scene and add the fragment there.
+<source lang="lua">
+local scene = ZO_Scene:New(ADDON_NAME, SCENE_MANAGER)
+scene:AddFragment(fragment)
+</source>
+
+When we call <code>/script SCENE_MANAGER:Toggle("SimpleNotebook")</code> we can show and hide it, but it will hide other scenes, as only one scene can be active at any time.
+This is of course not what we want for our notebook, so we will just remove this code and keep using the ''SetHidden'' function directly, but in cases where we try to add something to an existing part of the UI, letting the ''SceneManager'' handle visibility is the preferable way.
+
+With this we have learned how to create a window that can be moved, resized and toggled. We also learned that there is a developer addon called ''Mer Torchbug'' that allows us to edit properties of our controls and also that there is a ''SceneManager'' that handles UI element visibility.
+Next time we will fill the window with our notes.
