@@ -13,7 +13,7 @@ This line specifies that the global variable SimpleNotebook_Data has to be saved
 
 Now that we have updated our manifest we can create our saved data structure.
 The SavedVariables are simply global variables and it is up to us what we store in them. It is in most cases useful to create sub tables for display names, because multiple accounts can be used on the same PC and we do not want to mix their data up. It may also be necessary to further separate it by character name and another good idea is to include a version number somewhere in case we want to upgrade the data structure in the future.
-With the introduction of name change tokens in Update 12 we will also have to take care of character renames.
+With the introduction of name change tokens in Update 12 we now also have to take care of character renames.
 
 We could handle all of this ourselves, or use the class that ZOS provides for their own saved variables.
 The ''ZO_SavedVars'' object automatically creates the necessary structure and provides a table for the current user that we can simply store data in.
