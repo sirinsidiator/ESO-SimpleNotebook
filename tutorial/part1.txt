@@ -3,13 +3,13 @@ In this part of the tutorial we will look at how to create an add-on from scratc
 The first step to make an addon is to locate the correct [[UserFolder|folder]] in the filesystem. Once we are there, we create a new subfolder called ''SimpleNotebook'' inside the AddOn folder. Inside this new folder we now create a text file called ''SimpleNotebook.txt'' - the so called [[Addon manifest (.txt) format|manifest file]]. That's all. We now have created our very first add-on that will get recognized by the game. True, it doesn't do anything yet and won't even load unless we have "Allow out of date add-ons" checked in the add-ons menu, but it is a start.
 
 Let's fix the out of date warning. In order to do this, we need to specify which version of the API the addon was written for. This can be done by adding the following line to the manifest file:
-<pre>## APIVersion: 100015</pre>
+<pre>## APIVersion: 100016</pre>
 
 Now when we type <code>/reloadui</code> in chat, the add-on is no longer out of date and gets loaded. This slash command is really useful and something to remember, as it allows to see code changes without having to restart the game.
 
 We have an add-on, but it is not running any code - time to change that. We create a Lua file called ''StartUp.lua'' inside our addon's folder and add a second line to the manifest, containing just the name of the new file. It can also be call something else as long as the correct relative path is specified. 
 
-<pre>## APIVersion: 100015
+<pre>## APIVersion: 100016
 StartUp.lua
 </pre>
 
@@ -44,7 +44,7 @@ Now that our addon is running, we can also add a few more things like the add-on
 <pre>## Title: Simple Notebook
 ## Author: sirinsidiator
 ## Version: 1.0
-## APIVersion: 100015
+## APIVersion: 100016
 </pre>
 ''Note: You should change the author name to your own nickname, because you are writing it yourself.''
 
