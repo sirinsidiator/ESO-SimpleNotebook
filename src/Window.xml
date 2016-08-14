@@ -1,0 +1,14 @@
+<GuiXml>
+    <Controls>
+        <TopLevelControl name="SimpleNotebookWindow" mouseEnabled="true" movable="true" resizeHandleSize="8" clampedToScreen="true" hidden="true">
+            <Dimensions x="200" y="200" />
+            <DimensionConstraints minX="200" minY="200" />
+            <Anchor point="CENTER" />
+            <Controls>
+                <Backdrop name="$(parent)Bg" inherits="ZO_DefaultBackdrop">
+                    <AnchorFill />
+                </Backdrop>
+            </Controls>
+        </TopLevelControl>
+    </Controls>
+</GuiXml>

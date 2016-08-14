@@ -86,4 +86,37 @@ EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, function(eventTy
             return true
         end
     end)
+
+    local window = SimpleNotebookWindow
+    local properties = saveData.window
+    if(properties) then
+        window:ClearAnchors()
+        window:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, properties.x, properties.y)
+        window:SetDimensions(properties.width, properties.height)
+    else
+        local x, y = window:GetScreenRect()
+        local width, height = window:GetDimensions()
+        properties = {
+            x = x,
+            y = y,
+            width = width,
+            height = height
+        }
+        saveData.window = properties
+    end
+
+    window:SetHandler("OnMoveStop", function(control)
+        local x, y = control:GetScreenRect()
+        properties.x = x
+        properties.y = y
+    end)
+    window:SetHandler("OnResizeStop", function(control)
+        local width, height = control:GetDimensions()
+        properties.width = width
+        properties.height = height
+    end)
+
+    SLASH_COMMANDS["/simplenotebook"] = function()
+        window:SetHidden(not window:IsHidden())
+    end
 end)
