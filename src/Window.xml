@@ -1,13 +1,28 @@
 <GuiXml>
     <Controls>
+        <Button name="SimpleNotebookNoteIndexTemplate" inherits="ZO_DefaultTextButton" horizontalAlignment="TEXT_ALIGN_LEFT" virtual="true" />
+
         <TopLevelControl name="SimpleNotebookWindow" mouseEnabled="true" movable="true" resizeHandleSize="8" clampedToScreen="true" hidden="true">
-            <Dimensions x="200" y="200" />
-            <DimensionConstraints minX="200" minY="200" />
+            <Dimensions x="400" y="200" />
+            <DimensionConstraints minX="400" minY="200" />
             <Anchor point="CENTER" />
             <Controls>
                 <Backdrop name="$(parent)Bg" inherits="ZO_DefaultBackdrop">
                     <AnchorFill />
                 </Backdrop>
+
+                <Backdrop name="$(parent)Text" inherits="ZO_MultiLineEditBackdrop_Keyboard">
+                    <Anchor point="TOPLEFT" offsetX="200" offsetY="0" />
+                    <Anchor point="BOTTOMRIGHT" offsetX="-4" offsetY="-40" />
+                    <Controls>
+                        <EditBox name="$(parent)Edit" inherits="ZO_DefaultEditMultiLineForBackdrop" />
+                    </Controls>
+                </Backdrop>
+
+                <Control name="$(parent)Index" inherits="ZO_ScrollList">
+                    <Anchor point="TOPLEFT" offsetX="10" offsetY="10" />
+                    <Anchor point="BOTTOMRIGHT" relativePoint="BOTTOMLEFT" offsetX="190" offsetY="-10" />
+                </Control>
             </Controls>
         </TopLevelControl>
     </Controls>

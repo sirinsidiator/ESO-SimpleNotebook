@@ -119,4 +119,39 @@ EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_ADD_ON_LOADED, function(eventTy
     SLASH_COMMANDS["/simplenotebook"] = function()
         window:SetHidden(not window:IsHidden())
     end
+
+    local editBox = window:GetNamedChild("TextEdit")
+    local currentKey
+    editBox:SetHandler("OnTextChanged", function()
+        if(not currentKey) then return end
+        storage:SetNote(currentKey, editBox:GetText())
+    end)
+
+    local function InitializeRow(control, data)
+        control:SetText(data.key)
+        control:SetHandler("OnClicked", function()
+            local note = storage:GetNote(data.key)
+            currentKey = data.key
+            editBox:SetText(note)
+        end)
+    end
+
+    local NOTE_TYPE = 1
+    local indexContainer = window:GetNamedChild("Index")
+    ZO_ScrollList_AddDataType(indexContainer, NOTE_TYPE, "SimpleNotebookNoteIndexTemplate", 20, InitializeRow)
+
+    local function UpdateIndex()
+        local scrollData = ZO_ScrollList_GetDataList(indexContainer)
+        ZO_ScrollList_Clear(indexContainer)
+
+        local entries = storage:GetKeys()
+        for i=1, #entries do
+            scrollData[#scrollData + 1] = ZO_ScrollList_CreateDataEntry(NOTE_TYPE, {key = entries[i]})
+        end
+
+        ZO_ScrollList_Commit(indexContainer)
+    end
+
+    storage:RegisterCallback("OnKeysUpdated", UpdateIndex)
+    UpdateIndex()
 end)

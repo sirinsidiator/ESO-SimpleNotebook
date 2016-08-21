@@ -1,8 +1,8 @@
-local Storage = ZO_Object:Subclass()
+local Storage = ZO_CallbackObject:Subclass()
 SimpleNotebook.Storage = Storage
 
 function Storage:New(saveData)
-    local storage = ZO_Object.New(self)
+    local storage = ZO_CallbackObject.New(self)
     storage.notes = saveData.notes or {}
     saveData.notes = storage.notes
     return storage
@@ -30,13 +30,25 @@ function Storage:HasNote(key)
 end
 
 function Storage:SetNote(key, note)
+    local keyExists = self:HasNote(key)
     self.notes[key] = note
+    if(not keyExists) then
+        self:FireCallbacks("OnKeysUpdated")
+    end
 end
 
 function Storage:DeleteNote(key)
+    local keyExists = self:HasNote(key)
     self.notes[key] = nil
+    if(keyExists) then
+        self:FireCallbacks("OnKeysUpdated")
+    end
 end
 
 function Storage:DeleteAllNotes()
+    local hadNotes = self:HasNotes()
     ZO_ClearTable(self.notes)
+    if(hadNotes) then
+        self:FireCallbacks("OnKeysUpdated")
+    end
 end
