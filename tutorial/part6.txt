@@ -169,4 +169,4 @@ When we call <code>/script SCENE_MANAGER:Toggle("SimpleNotebook")</code> we can 
 This is of course not what we want for our notebook, so we will just remove this code and keep using the ''SetHidden'' function directly, but in cases where we try to add something to an existing part of the UI, letting the ''SceneManager'' handle visibility is the preferable way.
 
 With this we have learned how to create a window that can be moved, resized and toggled. We also learned that there is a developer addon called ''Mer Torchbug'' that allows us to edit properties of our controls and also that there is a ''SceneManager'' that handles UI element visibility.
-Next time we will fill the window with our notes.
+[[SimpleNotebookTutorial/part7|Next time]] we will fill the window with our notes.

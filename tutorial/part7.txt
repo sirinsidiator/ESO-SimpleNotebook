@@ -1,0 +1,240 @@
+[[SimpleNotebookTutorial/part6|Last time]] we created our window which we are now going to fill with some controls to allow us displaying and editing our notes.
+
+Let's start with the input field. The control we are going to use is an editbox and like with the background for our window, ZOS already has a template for it so we are going to find and reuse that.
+We already encountered a multi-line editbox a few times during this tutorial and addon developers see it more often than regular users. 
+The error frame shows the message in an editbox in order to allow copying the stack trace. When we take a loot at <code>errorframe.xml</code> we see that the template is called ''ZO_DefaultEditMultiLineForBackdrop''.
+Let's try and see what happens when we add it to our window:
+
+<source lang="xml">
+<Controls>
+    <Backdrop name="$(parent)Bg" inherits="ZO_DefaultBackdrop">
+        <AnchorFill />
+    </Backdrop>
+    <EditBox name="$(parent)Edit" inherits="ZO_DefaultEditMultiLineForBackdrop" />
+</Controls>
+</source>
+
+When we show our window via <code>/simplenotebook</code> it doesn't look any different, but when we click on it, a cursor shows up and we can type something.
+We are still missing the background and when we check the source code again we see that the editbox control that we saw is only a virtual control, so the actual control for the error window is created somewhere else.
+After searching for the name of the virtual control we can see that it is applied as a template with the help of ''ApplyTemplateToControl'' whenever the active GUI switches between keyboard and gamepad mode.
+So after some more looking we find that the actual window is defined at the end of <code>errorframe.xml</code>. We don't want to use the editbox style indirectly like the error window, so we just combine everything by hand for use in our window.
+
+<source lang="xml">
+<Backdrop name="$(parent)Text" inherits="ZO_MultiLineEditBackdrop_Keyboard">
+    <Anchor point="TOPLEFT" offsetY="30" />
+    <Anchor point="BOTTOMRIGHT" offsetX="-2" offsetY="-40" />
+    <Controls>
+        <EditBox name="$(parent)Edit" inherits="ZO_DefaultEditMultiLineForBackdrop" />
+    </Controls>
+</Backdrop>
+</source>
+
+Now we also have a background for our input field, but it is not yet positioned correctly. For that we need to edit the anchors that we just copied.
+We already saw them last time when we created them, but didn't really go into detail about what they are or how they work.
+There are basically two types of constraints we can use to shape our controls. Dimensional constraints like the width and height allow us to explicitly require a certain size for a control and anchor constraints allow us to position them relative to other controls.
+When we define one anchor it will allow us to place the control somewhere, but when we define a second one it will allow us to also link the size to other controls. When we resize our window, the editbox will automatically resize to match the window. This is because we have one anchor in the top left corner of it and the other one in the bottom right corner.
+
+Let's try what happens when we change the second anchor to ''BOTTOMLEFT'' instead.
+
+The box doesn't fill the window anymore, but still resizes when we change the height.
+When we add a dimensional constraint for the width now, we have a dynamic height and a fixed width.
+We can also switch it around and set a specific height and let it dynamically adjust the height, but there are also many combinations that won't work and either are ignored or throw an error.
+
+Besides explicitly setting a dimension or anchors for a control, we can also use the ''resizeToFitDescendents'' property to allow a parent to change its size based on child controls.
+In that case it is important that we do not use dynamic sizes on child controls in a way that prevents the parent to determine the size or we will be greeted by an error.
+
+Besides the way the anchors are used in the code that we copied from the error frame, there are also some other properties that we can use to specify how a control is placed. We won't handle them all in this tutorial, but [[Control:SetAnchor|this wiki page]] has all the details.
+
+Now that we know how anchors work, we will relocate our editbox and leave some space for our note index on the left side.
+First we change the minimum width of the window to 400, revert the change to the second anchor and change the top left anchor so it starts at 200.
+Next we will create a label control for our note index.
+
+<source lang="xml">
+<Label name="$(parent)NoteIndex" text="Some Test Label" />
+</source>
+
+This won't show anything yet. The label won't work unless we specify a font as there is no default font. We could just search the source for font names, but there is a better way.
+It's time to install another addon called [http://www.esoui.com/downloads/info1210-sidTools.html sidTools]. This addon is a collection of tools that present information from the API for developers. One of the widgets (<code>/stfonts</code>) is a font viewer that lists all fonts that are available in the game or through addons and shows a preview.
+Once we have set a font the label will show up, but it is in the top left corner of the screen, so we will have to add an anchor to place it in our window.
+
+<source lang="xml">
+<Label name="$(parent)NoteIndex" font="ZoFontWinT2" text="Some Test Label">
+    <Anchor point="TOPLEFT" offsetX="10" offsetY="10" />
+</Label>
+</source>
+
+Now we have the label show up where we want it, but we don't just need one label, but a dynamic number of them.
+We could create them on the fly whenever a new note is created and remove them again when we delete it, but it is better to create a pool for the labels and reuse them later as creating a control is expensive and creating just 1000 plain controls in a loop will already freeze the game for a noticeable moment.
+Luckily ZOS already provides us with a pool class for controls that we can use. The ''ZO_ObjectPool'' allows us to specify a factory and reset function which will be called when the control is first created and whenever it is released. 
+As long as we do not have any special requirements, we can just skip the reset function and let the default function handle hiding our label.
+For creating a control we also can use the helper function ''ZO_ObjectPool_CreateNamedControl'' that is defined in the same file as the pool class.
+
+In our ''EVENT_ADD_ON_LOADED'' handler in <code>StartUp.lua</code> we create our pool and create one object like this:
+
+<source lang="lua">
+local pool = ZO_ObjectPool:New(function(objectPool)
+    return ZO_ObjectPool_CreateNamedControl("$(parent)NoteIndex", "SimpleNotebookNoteIndexTemplate", objectPool, window)
+end)
+local label = pool:AcquireObject()
+</source>
+
+The first argument to ''ZO_ObjectPool_CreateNamedControl'' is used as a prefix for the control name and will be combined with some number. 
+The second string is the name of a virtual control that will be used as a template for the newly created control.
+This means we need move our label control in our xml file to the ''GuiRoot'', rename it to ''SimpleNotebookNoteIndexTemplate'' and set it to be a virtual control.
+
+<source lang="xml">
+<GuiXml>
+    <Controls>
+        <Label name="SimpleNotebookNoteIndexTemplate" font="ZoFontWinT2" text="Some Test Label" virtual="true">
+            <Anchor point="TOPLEFT" offsetX="10" offsetY="10" />
+        </Label>
+</source>
+
+Now we see the same as before when we open our notebook.
+
+Next we need to handle positioning them below each other and also set their text dynamically, so we remove the anchors and text property from our template and instead set them in Lua:
+
+<source lang="lua">
+local label = pool:AcquireObject()
+label:SetAnchor(TOPLEFT, nil, TOPLEFT, 10, 10)
+label:SetText("Test Label 1")
+
+local label2 = pool:AcquireObject()
+label2:SetAnchor(TOPLEFT, nil, TOPLEFT, 10, 30)
+label2:SetText("Test Label 2")
+</source>
+
+This works fine an shows us a second label below the first, but what will happen when we create 20 of them in a loop?
+
+<source lang="lua">
+for i = 1, 20 do
+    local label = pool:AcquireObject()
+    label:SetAnchor(TOPLEFT, nil, TOPLEFT, 10, 10 + 20 * (i - 1))
+    label:SetText(string.format("Test Label %d", i))
+end
+</source>
+
+As we can see this won't work when the window is too small to hold all of them and they just extend outside of the background.
+We could check how much space we have when we resize the window and hide them accordingly, but then we could not see all of them when the window is too small.
+Instead of handling this ourselves we could just use another of the tools in ZOS' repertoire and let ''ZO_Scroll'' handle this - it would also show a scroll bar.
+But in our case where we want a list of controls backed by a data table there is an even better way.
+''ZO_ScrollList'' allows us to easily handle a list in a superior way as it won't create controls for every single entry, but instead only for what is visible at a time.
+
+To use it we just need to create a control that inherits from ''ZO_ScrollList'' and register a new data type.
+<source lang="xml">
+<Control name="$(parent)Index" inherits="ZO_ScrollList">
+    <Anchor point="TOPLEFT" offsetX="10" offsetY="10" />
+    <Anchor point="BOTTOMRIGHT" relativePoint="BOTTOMLEFT" offsetX="190" offsetY="-10" />
+</Control>
+</source>
+
+<source lang="lua">
+local NOTE_TYPE = 1
+local indexContainer = window:GetNamedChild("Index")
+ZO_ScrollList_AddDataType(indexContainer, NOTE_TYPE, "SimpleNotebookNoteIndexTemplate", 20, InitializeRow)
+</source>
+
+''InitializeRow'' is a setup callback that is called whenever an entry shows up and will get the control and the entry passed as arguments.
+
+<source lang="lua">
+local function InitializeRow(control, data)
+    control:SetText(data.key)
+end
+</source>
+
+The data object that is passed to the function is what we will need to create next.
+Whenever our data source changes, we need to handle updating our scroll list so it displays the changes.
+In our case we can already start using our saved notes as a source.
+
+<source lang="lua">
+local scrollData = ZO_ScrollList_GetDataList(indexContainer)
+ZO_ScrollList_Clear(indexContainer)
+
+local entries = storage:GetKeys()
+for i=1, #entries do
+    scrollData[#scrollData + 1] = ZO_ScrollList_CreateDataEntry(NOTE_TYPE, {key = entries[i]})
+end
+
+ZO_ScrollList_Commit(indexContainer)
+</source>
+
+Now when we reload, we will see all stored notes that are present when the UI is loaded, but we also want to see changes when we use our slash commands.
+For this to happen we need to wrap the update code in a function and call it whenever a note is added or removed.
+As we already have wrapped our saved variables in our ''Storage'' class we may as well add a callback there to notify us when a change happened.
+
+First we change the base class to ''ZO_CallbackObject'' by replacing both occurrences of ''ZO_Object''. That way we have all the necessary functions right where they are needed.
+Then we will fire a callback ''OnKeysUpdated'' whenever a note is added or deleted.
+
+<source lang="lua">
+function Storage:SetNote(key, note)
+    local keyExists = self:HasNote(key)
+    self.notes[key] = note
+    if(not keyExists) then
+        self:FireCallbacks("OnKeysUpdated")
+    end
+end
+
+function Storage:DeleteNote(key)
+    local keyExists = self:HasNote(key)
+    self.notes[key] = nil
+    if(keyExists) then
+        self:FireCallbacks("OnKeysUpdated")
+    end
+end
+
+function Storage:DeleteAllNotes()
+    local hadNotes = self:HasNotes()
+    ZO_ClearTable(self.notes)
+    if(hadNotes) then
+        self:FireCallbacks("OnKeysUpdated")
+    end
+end
+</source>
+
+Finally we create a method ''UpdateIndex'' out of our list update code and register it as a handler of our new callback.
+
+<source lang="lua">
+storage:RegisterCallback("OnKeysUpdated", UpdateIndex)
+</source>
+
+We also need to call it once when our addon is loaded in order to initialize the list.
+Now the list will reflect changes made via our slash commands.
+
+The final step for this part of our tutorial is to actually show the note when we click on an entry and also to save the changes when we type something in the editbox.
+
+In order to be able to click on our rows, we need to change the ''Label'' control into a ''Button'' control and then register an ''OnClicked'' handler in our ''InitializeRow'' function.
+<source lang="lua">
+local editBox = window:GetNamedChild("TextEdit")
+local function InitializeRow(control, data)
+    control:SetText(data.key)
+    control:SetHandler("OnClicked", function()
+        local note = storage:GetNote(data.key)
+        editBox:SetText(note)
+    end)
+end
+</source>
+
+Now the text field will get filled with the note, but the labels are now centered and when we click the button we don't get any feedback.
+The first problem can be solved by specifying ''horizontalAlignment'' and setting it to ''TEXT_ALIGN_LEFT''. 
+For the click feedback we can use another template ''ZO_DefaultTextButton'' which also sets a font, so we can change our own template to:
+<source lang="xml">
+<Button name="SimpleNotebookNoteIndexTemplate" inherits="ZO_DefaultTextButton" horizontalAlignment="TEXT_ALIGN_LEFT" virtual="true" />
+</source>
+
+The next step is to add a handler for ''OnTextChanged'' to our edit box and update the note when it is called. In order to pass the key for our note to ''SetNote'' we need to save when we select a note.
+<source lang="lua">
+local currentKey
+editBox:SetHandler("OnTextChanged", function()
+    if(not currentKey) then return end
+    storage:SetNote(currentKey, editBox:GetText())
+end)
+</source>
+
+It is important that we assign ''currentKey'' before we call ''SetText'', otherwise we will overwrite the previously selected note with the text of the newly selected one as ''SetText'' will trigger the ''OnTextChanged'' handler.
+This is also something to keep in mind when the callbacks are set up in a way that a change to the control will change some underlying data source which in turn will update the control as it will cause an infinite loop and hang the game.
+There are two ways how this can be prevented. Either we set a flag that breaks the cycle when the callback is fired because of changes triggered by code, or check if there is any difference between the currently shown text and the changed text and skip calling ''SetText'' when it is the same.
+That being said, reacting to changes on existing notes is the homework for next week, as changes made via <code>/remember</code> won't show up in our text field until we click the key again.
+
+With that we have created a text input field, learned what anchors are, seen how we can pool controls, created a scroll list and produced our own callback.
+We now have a working GUI for our notebook, but there are still a few things left to do.
+In the next part we will add buttons to create and delete notes among some other things.
